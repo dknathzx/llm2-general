@@ -237,5 +237,9 @@ def main():
     print(f"  Next step   : python inference.py")
     print(f"{'='*60}")
 
+
 if __name__ == "__main__":
+    from journey_log import log
+    log("train.py", "RUNNING", "started")
     main()
+    log("train.py", "OK", "completed successfully")
