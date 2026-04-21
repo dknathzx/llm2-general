@@ -3,6 +3,9 @@
 # Trains on Wikipedia + StackOverflow data
 # Vocab size: 50,000
 # ============================================================
+import sys
+sys.path.append('/kaggle/working/llm2-general')
+from journey_log import log
 import shutil
 import json
 import os
