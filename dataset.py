@@ -1,23 +1,23 @@
 # ============================================================
 # dataset.py —  LLM Dataset Pipeline
-# Loads kone_train.txt, tokenizes, creates batches
+# Loads GENERAL_train.txt, tokenizes, creates batches
 # ============================================================
 
 import torch
 from torch.utils.data import Dataset, DataLoader
 import json
 import os
-from tokenizer import KONETokenizer
+from tokenizer import GENERALTokenizer
 from config import BLOCK_SIZE, BATCH_SIZE, TOKENIZER_PATH
 
 
-class KONEDataset(Dataset):
+class GENERALDataset(Dataset):
 
     def __init__(self, split="train", val_ratio=0.1):
         self.block_size = BLOCK_SIZE
 
         # load tokenizer
-        self.tokenizer = KONETokenizer()
+        self.tokenizer = GENERALTokenizer()
         if os.path.exists(TOKENIZER_PATH):
             self.tokenizer.load(TOKENIZER_PATH)
         else:
@@ -27,7 +27,7 @@ class KONEDataset(Dataset):
             )
 
         # load and tokenize text
-        with open("data/kone_train.txt", "r", encoding="utf-8") as f:
+        with open("data/GENERAL_train.txt", "r", encoding="utf-8") as f:
             texts = f.readlines()
         texts = texts[:25000]
 
@@ -65,8 +65,8 @@ class KONEDataset(Dataset):
 
 
 def get_dataloaders():
-    train_ds = KONEDataset(split="train")
-    val_ds   = KONEDataset(split="val")
+    train_ds = GENERALDataset(split="train")
+    val_ds   = GENERALDataset(split="val")
 
     train_loader = DataLoader(
         train_ds,
