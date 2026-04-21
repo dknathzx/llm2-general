@@ -3,7 +3,7 @@
 # Trains on Wikipedia + StackOverflow data
 # Vocab size: 50,000
 # ============================================================
-
+import shutil
 import json
 import os
 import re
