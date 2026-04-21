@@ -1,5 +1,5 @@
 # ============================================================
-# train.py — KONE LLM Training Loop
+# train.py — GENERAL LLM Training Loop
 # Full detailed progress shown in terminal
 # ============================================================
 
@@ -9,9 +9,9 @@ import os
 import json
 import time
 from datetime import datetime
-from model import KONEModel
+from model import GENERALModel
 from dataset import get_dataloaders
-from tokenizer import KONETokenizer
+from tokenizer import GENERALTokenizer
 from config import (
     LEARNING_RATE, EPOCHS, EVAL_INTERVAL,
     SAVE_INTERVAL, GRAD_CLIP, DEVICE,
@@ -76,7 +76,7 @@ def format_time(seconds):
 
 def train():
     print("=" * 60)
-    print("KONE LLM — Training Started")
+    print("GENERAL LLM — Training Started")
     print(f"  Started  : {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print(f"  Device   : {DEVICE}")
     print(f"  Epochs   : {EPOCHS}")
@@ -84,7 +84,7 @@ def train():
 
     # ── Model ─────────────────────────────────────────────
     print("\n[1/5] Building model...")
-    model = KONEModel().to(DEVICE)
+    model = GENERALModel().to(DEVICE)
     total_params = model.count_params()
     print(f"  Parameters : {total_params:,}")
     print(f"  Model size : ~{total_params * 4 / 1024 / 1024:.1f} MB")
