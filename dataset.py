@@ -1,5 +1,5 @@
 # ============================================================
-# dataset.py — KONE LLM Dataset Pipeline
+# dataset.py —  LLM Dataset Pipeline
 # Loads kone_train.txt, tokenizes, creates batches
 # ============================================================
 
