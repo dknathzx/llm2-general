@@ -1,5 +1,5 @@
 # ============================================================
-# tokenizer.py — KONE Domain BPE Tokenizer
+# tokenizer.py — BPE Tokenizer
 # ============================================================
 
 import json
@@ -10,7 +10,7 @@ from collections import Counter
 from config import VOCAB_SIZE, TOKENIZER_PATH
 
 
-class KONETokenizer:
+class GENERALTokenizer:
 
     def __init__(self):
         self.vocab       = {}
@@ -24,7 +24,7 @@ class KONETokenizer:
 
     def train(self, texts: list):
         print("=" * 60)
-        print("KONE BPE Tokenizer Training")
+        print("BPE Tokenizer Training")
         print("=" * 60)
         t_start = time.time()
 
@@ -191,7 +191,7 @@ if __name__ == "__main__":
     print(f"Load time           : {time.time()-t0:.1f}s")
 
     print("\nStep 2 — Training tokenizer")
-    tok = KONETokenizer()
+    tok = GENERALTokenizer()
     tok.train(texts)
 
     print("\nStep 3 — Saving tokenizer")
