@@ -6,12 +6,12 @@
 
 import torch
 import os
-from model import KONEModel
-from tokenizer import KONETokenizer
+from model import GENERALModel
+from tokenizer import GENERALTokenizer
 from config import DEVICE, MODEL_PATH, TOKENIZER_PATH, BLOCK_SIZE
 
 
-class KONEInference:
+class GENERALInference:
 
     def __init__(self):
         self.device    = DEVICE
@@ -20,14 +20,14 @@ class KONEInference:
         self.loaded    = False
 
     def load(self):
-        print("Loading KONE LLM...")
+        print("Loading GENERAL LLM...")
 
         # load tokenizer
-        self.tokenizer = KONETokenizer()
+        self.tokenizer = GENERALTokenizer()
         self.tokenizer.load(TOKENIZER_PATH)
 
         # load model
-        self.model = KONEModel().to(self.device)
+        self.model = GENERALModel().to(self.device)
 
         if os.path.exists(MODEL_PATH):
             ckpt = torch.load(MODEL_PATH, map_location=self.device)
@@ -39,7 +39,7 @@ class KONEInference:
 
         self.model.eval()
         self.loaded = True
-        print("KONE LLM ready!")
+        print("GENERAL LLM ready!")
 
     def generate(self, prompt: str, max_new_tokens: int = 100,
                  temperature: float = 0.7, top_k: int = 40) -> str:
@@ -98,12 +98,12 @@ class KONEInference:
 # ── Plug into your existing agent ────────────────────────
 # Replace LLaMA with this:
 #
-# from inference import KONEInference
-# kone_llm = KONEInference()
-# kone_llm.load()
+# from inference import GENERALInference
+# GENERAL_llm = GENERALInference()
+# GENERAL_llm.load()
 #
-# response   = kone_llm.generate(query)
-# confidence = kone_llm.confidence_score(query)
+# response   = GENERAL_llm.generate(query)
+# confidence = GENERAL_llm.confidence_score(query)
 #
 # if confidence < 0.5:
 #     # fall back to LLaMA
@@ -112,7 +112,7 @@ class KONEInference:
 
 # ── Quick test ────────────────────────────────────────────
 if __name__ == "__main__":
-    llm = KONEInference()
+    llm = GENERALInference()
     llm.load()
 
     test_prompts = [
@@ -122,7 +122,7 @@ if __name__ == "__main__":
         "outlook not syncing",
     ]
 
-    print("\n=== KONE LLM Generation Test ===\n")
+    print("\n=== GENERAL LLM Generation Test ===\n")
     for prompt in test_prompts:
         response   = llm.generate(prompt, max_new_tokens=30)
         confidence = llm.confidence_score(prompt)
