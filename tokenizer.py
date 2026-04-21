@@ -188,6 +188,9 @@ class GeneralTokenizer:
 
 # ── Main ──────────────────────────────────────────────────
 if __name__ == "__main__":
+    from journey_log import log
+    log("tokenizer.py", "RUNNING", "started")
+
     from datasets import load_dataset
 
     print("Loading Wikipedia dataset from Kaggle...")
@@ -215,3 +218,4 @@ if __name__ == "__main__":
     print(f"\nencode('{sample}')")
     print(f"  → {encoded[:20]}...")
     print(f"decode → '{decoded}'")
+    log("tokenizer.py", "OK", "completed successfully")
