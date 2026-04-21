@@ -1,9 +1,9 @@
 # ============================================================
-# config.py — KONE LLM Configuration
+# config.py — 
 # ============================================================
 
 # ── Model Architecture ────────────────────────────────────
-VOCAB_SIZE    = 8000   # KONE domain vocabulary
+VOCAB_SIZE    = 8000   # vocabulary
 EMBED_DIM     = 256    # embedding dimension
 N_HEADS       = 4      # attention heads
 N_LAYERS      = 4      # transformer layers
@@ -12,7 +12,7 @@ BLOCK_SIZE    = 256    # context window
 DROPOUT       = 0.1    # dropout
 
 # ── Training ──────────────────────────────────────────────
-BATCH_SIZE    = 4      # small for CPU
+BATCH_SIZE    = 4     
 LEARNING_RATE = 3e-4
 EPOCHS        = 3
 EVAL_INTERVAL = 200
