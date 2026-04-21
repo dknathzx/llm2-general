@@ -22,8 +22,8 @@ GRAD_CLIP     = 1.0
 # ── Paths ─────────────────────────────────────────────────
 DATA_DIR       = "data"
 CHECKPOINT_DIR = "checkpoints"
-TOKENIZER_PATH = "kone_tokenizer.json"
-MODEL_PATH     = "checkpoints/phase2_kone_llm.pt"
+TOKENIZER_PATH = "GENERAL_tokenizer.json"
+MODEL_PATH     = "checkpoints/phase2_GENERAL_llm.pt"
 
 # ── Device ────────────────────────────────────────────────
 DEVICE = "cpu"  # HP EliteBook — no CUDA GPU
