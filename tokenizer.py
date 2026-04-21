@@ -55,26 +55,37 @@ class GeneralTokenizer:
         print(f"\n[3/4] Running {n_merges:,} BPE merges...")
 
         # represent each word as tuple of chars
-        vocab = {word: list(word) for word in word_freq}
-        merges = {}
-
         import time
+        import json
+        import os
+
+        TOK_CKPT    = "/kaggle/working/tokenizer_checkpoint.json"
+        start_merge = 0
+        vocab       = {word: list(word) for word in word_freq}
+        merges      = {}
+
+        # resume if checkpoint exists
+        if os.path.exists(TOK_CKPT):
+            with open(TOK_CKPT) as f:
+                ckpt = json.load(f)
+            merges      = {tuple(k.split("|||")): v for k, v in ckpt["merges"].items()}
+            vocab       = ckpt["vocab"]
+            start_merge = ckpt["done"]
+            print(f"  Resumed tokenizer from merge {start_merge:,}")
+
         start = time.time()
 
-        for i in range(n_merges):
+        for i in range(start_merge, n_merges):
             # count pairs
             pairs = Counter()
             for word, chars in vocab.items():
                 freq = word_freq[word]
                 for a, b in zip(chars, chars[1:]):
                     pairs[(a, b)] += freq
-
             if not pairs:
                 break
-
             best = max(pairs, key=pairs.get)
             merges[best] = "".join(best)
-
             # apply merge
             new_vocab = {}
             for word, chars in vocab.items():
@@ -89,7 +100,6 @@ class GeneralTokenizer:
                         j += 1
                 new_vocab[word] = new_chars
             vocab = new_vocab
-
             if (i + 1) % 500 == 0:
                 elapsed = time.time() - start
                 eta     = elapsed / (i + 1) * (n_merges - i - 1)
@@ -97,6 +107,16 @@ class GeneralTokenizer:
                       f"({100*(i+1)/n_merges:.1f}%)  "
                       f"best: {''.join(best):12s}  "
                       f"elapsed: {elapsed:.0f}s  ETA: {eta:.0f}s")
+            # save checkpoint every 1000 merges
+            if (i + 1) % 1000 == 0:
+                with open(TOK_CKPT, "w") as f:
+                    json.dump({
+                        "done"  : i + 1,
+                        "merges": {"|||".join(k): v for k, v in merges.items()},
+                        "vocab" : vocab
+                    }, f)
+                print(f"  💾 checkpoint saved — merge {i+1:,}")
+                
 
         # Step 4 — build final vocab
         print("\n[4/4] Building final vocabulary...")
