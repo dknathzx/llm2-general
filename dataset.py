@@ -47,16 +47,17 @@ def load_data(tok):
     print(f"{'='*60}")
 
     all_texts = []
+    # Source 1 — OpenWebText
+print("\n[1/2] Loading OpenWebText...")
+try:
+    wiki = load_dataset("Skylion007/openwebtext",
+                        split="train",
+                        trust_remote_code=True)
+    wiki_sample = min(MAX_SAMPLES // 2, len(wiki))
+    for i in range(wiki_sample):
+        text = wiki[i]["text"]
 
-    # Source 1 — Wikipedia
-    print("\n[1/2] Loading Wikipedia...")
-    try:
-        wiki = load_dataset("wikipedia", "20220301.en",
-                            split="train",
-                            trust_remote_code=True)
-        wiki_sample = min(MAX_SAMPLES // 2, len(wiki))
-        for i in range(wiki_sample):
-            text = wiki[i]["text"]
+
             if text and len(text) > 100:
                 all_texts.append(text[:1000])
             if (i + 1) % 50000 == 0:
