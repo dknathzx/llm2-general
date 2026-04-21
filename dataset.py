@@ -90,10 +90,25 @@ try:
 
     # Tokenize
     print("\nTokenizing all texts...")
-    all_ids = []
-    for i, text in enumerate(all_texts):
-        ids = tok.encode(text)
-        all_ids.extend(ids)
+DATASET_CKPT = "/kaggle/working/dataset_checkpoint.json"
+start_idx    = 0
+all_ids      = []
+
+if os.path.exists(DATASET_CKPT):
+    with open(DATASET_CKPT) as f:
+        ckpt = json.load(f)
+    all_ids   = ckpt["ids"]
+    start_idx = ckpt["done"]
+    print(f"  Resumed from text {start_idx:,}")
+
+for i, text in enumerate(all_texts[start_idx:], start=start_idx):
+    ids = tok.encode(text)
+    all_ids.extend(ids)
+    if (i + 1) % 10000 == 0:
+        with open(DATASET_CKPT, "w") as f:
+            json.dump({"ids": all_ids, "done": i+1}, f)
+        print(f"  💾 checkpoint saved at text {i+1:,}")
+
         if (i + 1) % 50000 == 0:
             print(f"  tokenized {i+1:,}/{len(all_texts):,}  "
                   f"tokens so far: {len(all_ids):,}")
