@@ -1,5 +1,5 @@
 # ============================================================
-# model.py — KONE LLM (5M Parameter Transformer)
+# model.py — GENERAL LLM (5M Parameter Transformer)
 # Pure PyTorch — runs on CPU — HP EliteBook compatible
 # ============================================================
 
@@ -93,8 +93,8 @@ class TransformerBlock(nn.Module):
         return x
 
 
-# ── Full KONE LLM ─────────────────────────────────────────
-class KONEModel(nn.Module):
+# ── Full GENERAL LLM ─────────────────────────────────────────
+class GENERALModel(nn.Module):
 
     def __init__(self):
         super().__init__()
@@ -163,7 +163,7 @@ class KONEModel(nn.Module):
 
 # ── Quick test ────────────────────────────────────────────
 if __name__ == "__main__":
-    model = KONEModel().to(DEVICE)
+    model = GENERALModel().to(DEVICE)
     print(f"Model parameters: {model.count_params():,}")
     print(f"Target: ~5M params")
 
