@@ -42,6 +42,7 @@ def save_checkpoint(model, optimizer, scaler, epoch, step, loss, path):
     }, path)
     size_mb = os.path.getsize(path) / 1024**2
     print(f"  ✅ checkpoint saved → {path}  ({size_mb:.1f} MB)")
+    shutil.copy("/kaggle/working/journey_log.json", "/kaggle/working/journey_backup.json")
 
 def load_checkpoint(model, optimizer, scaler, path):
     if not os.path.exists(path):
