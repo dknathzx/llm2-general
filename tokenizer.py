@@ -167,9 +167,9 @@ if __name__ == "__main__":
     from datasets import load_dataset
 
     print("Loading Wikipedia dataset from Kaggle...")
-    dataset = load_dataset("wikipedia", "20220301.en",
-                           split="train",
-                           trust_remote_code=True)
+    dataset = load_dataset("wikimedia/wikipedia", "20231101.en",
+                       split="train")
+  
 
     print(f"Total articles: {len(dataset):,}")
     print("Sampling 100,000 articles for tokenizer training...")
