@@ -116,6 +116,7 @@ class GeneralTokenizer:
                         "vocab" : vocab
                     }, f)
                 print(f"  💾 checkpoint saved — merge {i+1:,}")
+                shutil.copy("/kaggle/working/journey_log.json", "/kaggle/working/journey_backup.json")
                 
 
         # Step 4 — build final vocab
