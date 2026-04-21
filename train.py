@@ -8,6 +8,9 @@
 #   - Detailed progress output
 #   - Learning rate warmup + cosine decay
 # ============================================================
+import sys
+sys.path.append('/kaggle/working/llm2-general')
+from journey_log import log
 import shutil
 import torch
 import torch.nn as nn
