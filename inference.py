@@ -1,5 +1,5 @@
 # ============================================================
-# inference.py — KONE LLM Inference
+# inference.py —  LLM Inference
 # Load trained model and generate responses
 # Use this to plug into your existing agent
 # ============================================================
