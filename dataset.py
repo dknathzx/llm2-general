@@ -3,6 +3,9 @@
 # Sources: Wikipedia + Stack Overflow (free on Kaggle)
 # No confidential data — fully public datasets
 # ============================================================
+import sys
+sys.path.append('/kaggle/working/llm2-general')
+from journey_log import log
 import json
 import os
 import torch
