@@ -3,15 +3,21 @@
 # Trains on Wikipedia + StackOverflow data
 # Vocab size: 50,000
 # ============================================================
+
 import sys
 sys.path.append('/kaggle/working/llm2-general')
+
 from journey_log import log
+
 import shutil
 import json
 import os
 import re
-from collections import Counter, defaultdict
+import subprocess
+import time
+from collections import Counter
 from config import VOCAB_SIZE, TOKENIZER_PATH
+from kaggle_secrets import UserSecretsClient
 
 # ── Special tokens ────────────────────────────────────────
 PAD_TOKEN = "<PAD>"
@@ -20,6 +26,76 @@ BOS_TOKEN = "<BOS>"
 EOS_TOKEN = "<EOS>"
 SPECIAL_TOKENS = [PAD_TOKEN, UNK_TOKEN, BOS_TOKEN, EOS_TOKEN]
 
+# ── Kaggle Push Setup ─────────────────────────────────────
+KAGGLE_DATASET     = "dwarakanathk/llm2-checkpoints-placeholder-file"
+KAGGLE_DATASET_DIR = "/kaggle/working/llm2-checkpoints"
+AUTO_PUSH          = True
+
+def setup_kaggle_credentials():
+    secrets = UserSecretsClient()
+    os.environ["KAGGLE_USERNAME"] = secrets.get_secret("KAGGLE_USERNAME")
+    os.environ["KAGGLE_KEY"]      = secrets.get_secret("KAGGLE_KEY")
+
+def push_to_kaggle(label="update"):
+    """Push ALL important files to Kaggle dataset permanently"""
+    if not AUTO_PUSH:
+        return
+    try:
+        setup_kaggle_credentials()
+        print(f"\n  📤 Pushing to Kaggle dataset... [{label}]")
+
+        os.makedirs(KAGGLE_DATASET_DIR, exist_ok=True)
+
+        files_to_save = [
+            "/kaggle/working/GENERAL_tokenizer.json",
+            "/kaggle/working/tokenizer_checkpoint.json",
+            "/kaggle/working/journey_log.json",
+            "/kaggle/working/journey_backup.json",
+        ]
+
+        # Also grab any model checkpoints
+        ckpt_dir = "/kaggle/working/checkpoints"
+        if os.path.exists(ckpt_dir):
+            for f in os.listdir(ckpt_dir):
+                files_to_save.append(os.path.join(ckpt_dir, f))
+
+        copied = []
+        for fpath in files_to_save:
+            if os.path.exists(fpath):
+                shutil.copy(fpath, KAGGLE_DATASET_DIR)
+                size_mb = os.path.getsize(fpath) / 1024**2
+                copied.append(f"{os.path.basename(fpath)} ({size_mb:.1f} MB)")
+
+        if not copied:
+            print("  ⚠️ No files found to push yet.")
+            return
+
+        meta = {
+            "title": "LLM2 Checkpoints - placeholder file",
+            "id": KAGGLE_DATASET,
+            "licenses": [{"name": "CC0-1.0"}]
+        }
+        with open(f"{KAGGLE_DATASET_DIR}/dataset-metadata.json", "w") as f:
+            json.dump(meta, f)
+
+        result = subprocess.run([
+            "kaggle", "datasets", "version",
+            "-p", KAGGLE_DATASET_DIR,
+            "-m", label
+        ], capture_output=True, text=True)
+
+        if result.returncode == 0:
+            print(f"  ✅ Permanently saved {len(copied)} files:")
+            for c in copied:
+                print(f"     → {c}")
+        else:
+            print(f"  ⚠️ Push failed: {result.stderr}")
+
+    except Exception as e:
+        print(f"  ⚠️ Push error: {e}")
+
+
+# ── Tokenizer Class ───────────────────────────────────────
 class GeneralTokenizer:
 
     def __init__(self):
@@ -27,15 +103,14 @@ class GeneralTokenizer:
         self.merges     = {}
         self.vocab_size = 0
 
-    # ── Training ──────────────────────────────────────────
     def train(self, texts, target_vocab=VOCAB_SIZE):
         print(f"\n{'='*60}")
-        print(f"  Tokenizer Training")
-        print(f"  Texts        : {len(texts):,}")
-        print(f"  Target vocab : {target_vocab:,}")
+        print(f" Tokenizer Training")
+        print(f" Texts : {len(texts):,}")
+        print(f" Target vocab : {target_vocab:,}")
         print(f"{'='*60}")
 
-        # Step 1 — build word frequencies
+        # Step 1 — word frequencies
         print("\n[1/4] Building word frequencies...")
         word_freq = Counter()
         for i, text in enumerate(texts):
@@ -53,21 +128,15 @@ class GeneralTokenizer:
         print(f"  unique chars : {len(char_vocab)}")
 
         # Step 3 — BPE merges
-        n_merges   = target_vocab - len(SPECIAL_TOKENS) - len(char_vocab)
-        n_merges   = max(0, n_merges)
+        n_merges = max(0, target_vocab - len(SPECIAL_TOKENS) - len(char_vocab))
         print(f"\n[3/4] Running {n_merges:,} BPE merges...")
 
-        # represent each word as tuple of chars
-        import time
-        import json
-        import os
-
-        TOK_CKPT    = "/kaggle/working/tokenizer_checkpoint.json"
+        TOK_CKPT   = "/kaggle/working/tokenizer_checkpoint.json"
         start_merge = 0
         vocab       = {word: list(word) for word in word_freq}
         merges      = {}
 
-        # resume if checkpoint exists
+        # Resume if checkpoint exists
         if os.path.exists(TOK_CKPT):
             with open(TOK_CKPT) as f:
                 ckpt = json.load(f)
@@ -79,17 +148,21 @@ class GeneralTokenizer:
         start = time.time()
 
         for i in range(start_merge, n_merges):
-            # count pairs
+
+            # Count pairs
             pairs = Counter()
             for word, chars in vocab.items():
                 freq = word_freq[word]
                 for a, b in zip(chars, chars[1:]):
                     pairs[(a, b)] += freq
+
             if not pairs:
                 break
+
             best = max(pairs, key=pairs.get)
             merges[best] = "".join(best)
-            # apply merge
+
+            # Apply merge
             new_vocab = {}
             for word, chars in vocab.items():
                 new_chars = []
@@ -103,14 +176,17 @@ class GeneralTokenizer:
                         j += 1
                 new_vocab[word] = new_chars
             vocab = new_vocab
+
+            # Progress log every 500 merges
             if (i + 1) % 500 == 0:
                 elapsed = time.time() - start
                 eta     = elapsed / (i + 1) * (n_merges - i - 1)
-                print(f"  merge {i+1:5,}/{n_merges:,}  "
-                      f"({100*(i+1)/n_merges:.1f}%)  "
-                      f"best: {''.join(best):12s}  "
-                      f"elapsed: {elapsed:.0f}s  ETA: {eta:.0f}s")
-            # save checkpoint every 1000 merges
+                print(f"  merge {i+1:5,}/{n_merges:,} "
+                      f"({100*(i+1)/n_merges:.1f}%) "
+                      f"best: {''.join(best):12s} "
+                      f"elapsed: {elapsed:.0f}s ETA: {eta:.0f}s")
+
+            # ✅ Save checkpoint + push to Kaggle every 1000 merges
             if (i + 1) % 1000 == 0:
                 with open(TOK_CKPT, "w") as f:
                     json.dump({
@@ -119,8 +195,11 @@ class GeneralTokenizer:
                         "vocab" : vocab
                     }, f)
                 print(f"  💾 checkpoint saved — merge {i+1:,}")
-                shutil.copy("/kaggle/working/journey_log.json", "/kaggle/working/journey_backup.json")
-                
+                shutil.copy("/kaggle/working/journey_log.json",
+                            "/kaggle/working/journey_backup.json")
+
+                # ── PUSH TO KAGGLE PERMANENTLY ──
+                push_to_kaggle(f"tokenizer merge {i+1}")
 
         # Step 4 — build final vocab
         print("\n[4/4] Building final vocabulary...")
@@ -130,27 +209,25 @@ class GeneralTokenizer:
         for chars in vocab.values():
             all_tokens.update(chars)
 
-        token_list = SPECIAL_TOKENS + sorted(all_tokens)
-        token_list = token_list[:target_vocab]
-
+        token_list      = SPECIAL_TOKENS + sorted(all_tokens)
+        token_list      = token_list[:target_vocab]
         self.vocab      = {tok: i for i, tok in enumerate(token_list)}
         self.merges     = {str(k): v for k, v in merges.items()}
         self.vocab_size = len(self.vocab)
 
         elapsed = time.time() - start
         print(f"\nTokenizer Training Complete!")
-        print(f"  Vocab size   : {self.vocab_size:,}")
-        print(f"  Total time   : {elapsed:.0f}s  ({elapsed/60:.1f} mins)")
+        print(f"  Vocab size : {self.vocab_size:,}")
+        print(f"  Total time : {elapsed:.0f}s ({elapsed/60:.1f} mins)")
 
-    # ── Encode ────────────────────────────────────────────
     def encode(self, text):
-        words   = re.findall(r'\w+|[^\w\s]', text.lower())
-        ids     = []
-        unk_id  = self.vocab.get(UNK_TOKEN, 1)
+        words  = re.findall(r'\w+|[^\w\s]', text.lower())
+        ids    = []
+        unk_id = self.vocab.get(UNK_TOKEN, 1)
         for word in words:
             chars = list(word)
             for (a, b), merged in self.merges.items():
-                a, b = eval(f"({a}, {b})") if isinstance(a, str) and "," in a else (a, b)
+                a, b      = eval(f"({a}, {b})") if isinstance(a, str) and "," in a else (a, b)
                 new_chars = []
                 i = 0
                 while i < len(chars):
@@ -165,13 +242,11 @@ class GeneralTokenizer:
                 ids.append(self.vocab.get(tok, unk_id))
         return ids
 
-    # ── Decode ────────────────────────────────────────────
     def decode(self, ids):
         id_to_tok = {v: k for k, v in self.vocab.items()}
         tokens    = [id_to_tok.get(i, UNK_TOKEN) for i in ids]
         return " ".join(t for t in tokens if t not in SPECIAL_TOKENS)
 
-    # ── Save / Load ───────────────────────────────────────
     def save(self, path=TOKENIZER_PATH):
         os.makedirs(os.path.dirname(path) if os.path.dirname(path) else ".", exist_ok=True)
         with open(path, "w") as f:
@@ -180,11 +255,12 @@ class GeneralTokenizer:
 
     def load(self, path=TOKENIZER_PATH):
         with open(path) as f:
-            data = self.vocab, self.merges = (
-                (d := json.load(f))["vocab"], d["merges"]
-            )
+            d           = json.load(f)
+            self.vocab  = d["vocab"]
+            self.merges = d["merges"]
         self.vocab_size = len(self.vocab)
         print(f"Tokenizer loaded! Vocab size: {self.vocab_size:,}")
+
 
 # ── Main ──────────────────────────────────────────────────
 if __name__ == "__main__":
@@ -194,28 +270,29 @@ if __name__ == "__main__":
     from datasets import load_dataset
 
     print("Loading Wikipedia dataset from Kaggle...")
-    dataset = load_dataset("wikimedia/wikipedia", "20231101.en",
-                       split="train")
-  
-
+    dataset = load_dataset("wikimedia/wikipedia", "20231101.en", split="train")
     print(f"Total articles: {len(dataset):,}")
-    print("Sampling 100,000 articles for tokenizer training...")
 
+    print("Sampling 100,000 articles for tokenizer training...")
     texts = []
     for i, item in enumerate(dataset):
         if i >= 100000:
             break
-        texts.append(item["text"][:500])  # first 500 chars per article
+        texts.append(item["text"][:500])
 
     tok = GeneralTokenizer()
     tok.train(texts, target_vocab=VOCAB_SIZE)
     tok.save(TOKENIZER_PATH)
 
-    # test
+    # ✅ PUSH FINAL TOKENIZER TO KAGGLE PERMANENTLY
+    push_to_kaggle("tokenizer COMPLETE - final")
+
+    # Test
     sample  = "the quick brown fox jumps over the lazy dog"
     encoded = tok.encode(sample)
     decoded = tok.decode(encoded)
     print(f"\nencode('{sample}')")
     print(f"  → {encoded[:20]}...")
     print(f"decode → '{decoded}'")
+
     log("tokenizer.py", "OK", "completed successfully")
