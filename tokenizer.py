@@ -17,7 +17,6 @@ import subprocess
 import time
 from collections import Counter
 from config import VOCAB_SIZE, TOKENIZER_PATH
-from kaggle_secrets import UserSecretsClient
 
 # ── Special tokens ────────────────────────────────────────
 PAD_TOKEN = "<PAD>"
@@ -33,8 +32,16 @@ AUTO_PUSH          = True
 
 def setup_kaggle_credentials():
     os.environ["KAGGLE_USERNAME"] = "dwarakanathk"
-    os.environ["KAGGLE_KEY"]      = "KGAT_97ff8b4a8d918070c5209ec1e5c84858"    
-    
+    os.environ["KAGGLE_KEY"]      = "KGAT_97ff8b4a8d918070c5209ec1e5c84858"
+    # also write kaggle.json so CLI works
+    os.makedirs("/root/.kaggle", exist_ok=True)
+    with open("/root/.kaggle/kaggle.json", "w") as f:
+        json.dump({
+            "username": "dwarakanathk",
+            "key": "KGAT_97ff8b4a8d918070c5209ec1e5c84858"
+        }, f)
+    os.chmod("/root/.kaggle/kaggle.json", 0o600)
+
 
 def push_to_kaggle(label="update"):
     """Push ALL important files to Kaggle dataset permanently"""
@@ -81,7 +88,8 @@ def push_to_kaggle(label="update"):
         result = subprocess.run([
             "kaggle", "datasets", "version",
             "-p", KAGGLE_DATASET_DIR,
-            "-m", label
+            "-m", label,
+            "--dir-mode", "skip"
         ], capture_output=True, text=True)
 
         if result.returncode == 0:
