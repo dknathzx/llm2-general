@@ -32,9 +32,9 @@ KAGGLE_DATASET_DIR = "/kaggle/working/llm2-checkpoints"
 AUTO_PUSH          = True
 
 def setup_kaggle_credentials():
-    secrets = UserSecretsClient()
-    os.environ["KAGGLE_USERNAME"] = secrets.get_secret("KAGGLE_USERNAME")
-    os.environ["KAGGLE_KEY"]      = secrets.get_secret("KAGGLE_KEY")
+    os.environ["KAGGLE_USERNAME"] = "dwarakanathk"
+    os.environ["KAGGLE_KEY"]      = "KGAT_97ff8b4a8d918070c5209ec1e5c84858"    
+    
 
 def push_to_kaggle(label="update"):
     """Push ALL important files to Kaggle dataset permanently"""
