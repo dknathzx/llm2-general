@@ -235,15 +235,13 @@ class GeneralTokenizer:
         for word in words:
             chars = list(word)
             for pair, merged in self.merges.items():
-                 a, b = pair if isinstance(pair, tuple) else tuple(pair.split("|||"))
+                a, b = pair if isinstance(pair, tuple) else tuple(pair.split("|||"))
                 new_chars = []
-            i = 0 
-            while i < len(chars):
-                
-                if i < len(chars) - 1 and chars[i] == a and chars[i+1] == b:
-                    
-                    new_chars.append(merged)
-                    i += 2
+                i = 0
+                while i < len(chars):
+                    if i < len(chars) - 1 and chars[i] == a and chars[i+1] == b:
+                        new_chars.append(merged)
+                        i += 2
                     else:
                         new_chars.append(chars[i])
                         i += 1
@@ -305,4 +303,4 @@ if __name__ == "__main__":
     print(f"  → {encoded[:20]}...")
     print(f"decode → '{decoded}'")
 
-    log("tokenizer.py", "OK", "completed successfully") fix all indentation and give full file dont make a single other chane dont edit dont add dont remove a single thing no other chanege
+    log("tokenizer.py", "OK", "completed successfully")
