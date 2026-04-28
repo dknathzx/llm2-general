@@ -1,16 +1,16 @@
 # ============================================================
 # train.py — General LLM Training Loop
-# Optimized for Kaggle P100 GPU (16GB VRAM)
+# Optimized for Kaggle GPU
 # Features:
-#   - Mixed precision FP16 (2x faster on P100)
+#   - Mixed precision FP16 (2x faster on GPU)
 #   - Checkpoint save every N steps
-#   - Auto resume from last checkpoint
+#   - Auto push to Kaggle dataset permanently
+#   - Auto resume from dataset checkpoint
 #   - Detailed progress output
 #   - Learning rate warmup + cosine decay
 # ============================================================
 import sys
 sys.path.append('/kaggle/working/llm2-general')
-from journey_log import log
 import shutil
 import torch
 import torch.nn as nn
@@ -19,6 +19,7 @@ import os
 import json
 import time
 import math
+import subprocess
 
 from config import (
     VOCAB_SIZE, EMBED_DIM, N_HEADS, N_LAYERS,
@@ -31,6 +32,101 @@ from config import (
 from model import GeneralLLM
 from tokenizer import GeneralTokenizer
 from dataset import get_dataloaders
+
+# ── Kaggle Dataset Config ─────────────────────────────────
+KAGGLE_DATASET     = "dwarakanathk/llm2-checkpoints-placeholder-file"
+KAGGLE_DATASET_DIR = "/kaggle/working/llm2-train-checkpoints"
+AUTO_PUSH          = True
+
+# ── Setup Kaggle API ──────────────────────────────────────
+def setup_kaggle_credentials():
+    os.environ["KAGGLE_USERNAME"] = "dwarakanathk"
+    os.environ["KAGGLE_KEY"]      = "KGAT_97ff8b4a8d918070c5209ec1e5c84858"
+    os.makedirs("/root/.kaggle", exist_ok=True)
+    with open("/root/.kaggle/kaggle.json", "w") as f:
+        json.dump({
+            "username": "dwarakanathk",
+            "key":      "KGAT_97ff8b4a8d918070c5209ec1e5c84858"
+        }, f)
+    os.chmod("/root/.kaggle/kaggle.json", 0o600)
+
+# ── Push checkpoints to Kaggle dataset ───────────────────
+def push_to_kaggle(label="update"):
+    if not AUTO_PUSH:
+        return
+    try:
+        setup_kaggle_credentials()
+        print(f"\n  📤 Pushing to Kaggle dataset... [{label}]")
+
+        os.makedirs(KAGGLE_DATASET_DIR, exist_ok=True)
+
+        # files to save
+        files_to_save = [
+            MODEL_PATH,
+            LOG_PATH,
+            "/kaggle/working/journey_log.json",
+            "/kaggle/working/journey_backup.json",
+        ]
+
+        # also grab epoch checkpoints
+        if os.path.exists(CHECKPOINT_DIR):
+            for f in os.listdir(CHECKPOINT_DIR):
+                files_to_save.append(os.path.join(CHECKPOINT_DIR, f))
+
+        copied = []
+        for fpath in files_to_save:
+            if os.path.exists(fpath):
+                shutil.copy(fpath, KAGGLE_DATASET_DIR)
+                size_mb = os.path.getsize(fpath) / 1024**2
+                copied.append(f"{os.path.basename(fpath)} ({size_mb:.1f} MB)")
+
+        if not copied:
+            print("  ⚠️ No files found to push yet.")
+            return
+
+        # dataset metadata
+        meta = {
+            "title": "LLM2 Checkpoints - placeholder file",
+            "id":    KAGGLE_DATASET,
+            "licenses": [{"name": "CC0-1.0"}]
+        }
+        with open(f"{KAGGLE_DATASET_DIR}/dataset-metadata.json", "w") as f:
+            json.dump(meta, f)
+
+        result = subprocess.run([
+            "kaggle", "datasets", "version",
+            "-p", KAGGLE_DATASET_DIR,
+            "-m", label,
+            "--dir-mode", "skip"
+        ], capture_output=True, text=True)
+
+        if result.returncode == 0:
+            print(f"  ✅ Permanently saved {len(copied)} files:")
+            for c in copied:
+                print(f"     → {c}")
+        else:
+            print(f"  ⚠️ Push failed: {result.stderr}")
+
+    except Exception as e:
+        print(f"  ⚠️ Push error: {e}")
+
+# ── Download checkpoint from dataset ─────────────────────
+def download_from_kaggle():
+    try:
+        setup_kaggle_credentials()
+        print("  📥 Checking dataset for existing checkpoint...")
+        result = subprocess.run([
+            "kaggle", "datasets", "download",
+            KAGGLE_DATASET,
+            "-p", "/kaggle/working/",
+            "--unzip"
+        ], capture_output=True, text=True)
+        if result.returncode == 0:
+            print("  ✅ Downloaded from dataset!")
+        else:
+            print("  ⚠️ No checkpoint in dataset yet — starting fresh!")
+    except Exception as e:
+        print(f"  ⚠️ Download error: {e}")
 
 # ── Helpers ───────────────────────────────────────────────
 def save_checkpoint(model, optimizer, scaler, epoch, step, loss, path):
@@ -45,10 +141,10 @@ def save_checkpoint(model, optimizer, scaler, epoch, step, loss, path):
     }, path)
     size_mb = os.path.getsize(path) / 1024**2
     print(f"  ✅ checkpoint saved → {path}  ({size_mb:.1f} MB)")
-    shutil.copy("/kaggle/working/journey_log.json", "/kaggle/working/journey_backup.json")
 
 def load_checkpoint(model, optimizer, scaler, path):
     if not os.path.exists(path):
+        print("  No checkpoint found — starting fresh")
         return 0, 0
     print(f"  Loading checkpoint from {path}...")
     ckpt = torch.load(path, map_location=DEVICE)
@@ -58,11 +154,10 @@ def load_checkpoint(model, optimizer, scaler, path):
         scaler.load_state_dict(ckpt["scaler"])
     epoch = ckpt["epoch"]
     step  = ckpt["step"]
-    print(f"  Resumed from checkpoint — epoch {epoch}  step {step:,}")
+    print(f"  ✅ Resumed from epoch {epoch} step {step:,} loss {ckpt['loss']:.4f}")
     return epoch, step
 
 def get_lr(step, warmup_steps, max_steps, base_lr):
-    """Warmup then cosine decay"""
     if step < warmup_steps:
         return base_lr * step / warmup_steps
     progress = (step - warmup_steps) / max(1, max_steps - warmup_steps)
@@ -79,7 +174,7 @@ def evaluate(model, val_dl, device, use_amp):
             _, loss = model(x, y)
         total_loss += loss.item()
         count      += 1
-        if count >= 50:  # limit eval batches for speed
+        if count >= 50:
             break
     model.train()
     return total_loss / max(count, 1)
@@ -93,6 +188,10 @@ def main():
     print(f"{'='*60}")
 
     os.makedirs(CHECKPOINT_DIR, exist_ok=True)
+
+    # Download checkpoint from dataset first
+    print("\n[0/5] Checking dataset for checkpoint...")
+    download_from_kaggle()
 
     # [1/5] Model
     print("\n[1/5] Building model...")
@@ -110,11 +209,8 @@ def main():
         betas        = (0.9, 0.95)
     )
     scaler = GradScaler() if USE_AMP and DEVICE == "cuda" else None
-    print(f"  Optimizer  : AdamW")
-    print(f"  LR         : {LEARNING_RATE}")
-    print(f"  Grad clip  : {GRAD_CLIP}")
 
-    # [3/5] Load checkpoint if exists
+    # [3/5] Load checkpoint
     print("\n[3/5] Checking for checkpoint...")
     start_epoch, global_step = load_checkpoint(model, optimizer, scaler, MODEL_PATH)
 
@@ -141,19 +237,17 @@ def main():
         print(f"  EPOCH {epoch+1}/{EPOCHS}")
         print(f"{'='*60}")
 
-        epoch_start = time.time()
+        epoch_start  = time.time()
         running_loss = 0
         count        = 0
 
         for step, (x, y) in enumerate(train_dl):
             x, y = x.to(DEVICE), y.to(DEVICE)
 
-            # learning rate schedule
             lr = get_lr(global_step, WARMUP_STEPS, total_steps, LEARNING_RATE)
             for pg in optimizer.param_groups:
                 pg["lr"] = lr
 
-            # forward + backward
             optimizer.zero_grad()
             if USE_AMP and DEVICE == "cuda":
                 with autocast():
@@ -175,8 +269,8 @@ def main():
 
             # progress
             if global_step % 10 == 0:
-                avg_loss  = running_loss / count
-                elapsed   = time.time() - epoch_start
+                avg_loss   = running_loss / count
+                elapsed    = time.time() - epoch_start
                 steps_done = step + 1
                 steps_left = len(train_dl) - steps_done
                 eta        = elapsed / steps_done * steps_left if steps_done > 0 else 0
@@ -203,19 +297,20 @@ def main():
                     "train_loss": avg_loss, "val_loss": val_loss
                 })
 
-            # checkpoint
+            # checkpoint + push to dataset
             if global_step % SAVE_INTERVAL == 0:
                 avg_loss = running_loss / count
                 print(f"\n  --- CHECKPOINT at step {global_step:,} ---")
                 save_checkpoint(model, optimizer, scaler,
                                 epoch + 1, global_step, avg_loss, MODEL_PATH)
-                # save log
                 with open(LOG_PATH, "w") as f:
                     json.dump(log, f, indent=2)
+                # ✅ PUSH TO KAGGLE PERMANENTLY
+                push_to_kaggle(f"step {global_step}")
                 print()
 
-        # end of epoch checkpoint
-        avg_loss = running_loss / max(count, 1)
+        # end of epoch
+        avg_loss   = running_loss / max(count, 1)
         epoch_path = os.path.join(CHECKPOINT_DIR, f"epoch_{epoch+1}.pt")
         print(f"\n  --- END OF EPOCH {epoch+1} ---")
         print(f"  avg train loss : {avg_loss:.4f}")
@@ -223,6 +318,8 @@ def main():
                         epoch + 1, global_step, avg_loss, epoch_path)
         save_checkpoint(model, optimizer, scaler,
                         epoch + 1, global_step, avg_loss, MODEL_PATH)
+        # ✅ PUSH EPOCH CHECKPOINT TO KAGGLE
+        push_to_kaggle(f"epoch {epoch+1} complete")
 
     # Final save
     final_path = os.path.join(CHECKPOINT_DIR, "general_llm_final.pt")
@@ -231,15 +328,14 @@ def main():
     with open(LOG_PATH, "w") as f:
         json.dump(log, f, indent=2)
 
+    # ✅ PUSH FINAL MODEL TO KAGGLE
+    push_to_kaggle("FINAL MODEL COMPLETE")
+
     print(f"\n{'='*60}")
     print(f"  Training Complete!")
     print(f"  Final model → {final_path}")
-    print(f"  Next step   : python inference.py")
     print(f"{'='*60}")
 
 
 if __name__ == "__main__":
-    from journey_log import log
-    log("train.py", "RUNNING", "started")
     main()
-    log("train.py", "OK", "completed successfully")
