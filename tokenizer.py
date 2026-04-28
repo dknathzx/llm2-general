@@ -234,8 +234,8 @@ class GeneralTokenizer:
         unk_id = self.vocab.get(UNK_TOKEN, 1)
         for word in words:
             chars = list(word)
-            for (a, b), merged in self.merges.items():
-                a, b      = eval(f"({a}, {b})") if isinstance(a, str) and "," in a else (a, b)
+            for pair, merged in self.merges.items():
+                 a, b = pair if isinstance(pair, tuple) else tuple(pair.split("|||"))
                 new_chars = []
                 i = 0
                 while i < len(chars):
