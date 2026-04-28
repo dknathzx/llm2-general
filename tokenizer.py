@@ -3,7 +3,7 @@
 # Trains on Wikipedia + StackOverflow data
 # Vocab size: 50,000
 # ============================================================
-
+import ast 
 import sys
 sys.path.append('/kaggle/working/llm2-general')
 
@@ -235,7 +235,7 @@ class GeneralTokenizer:
         for word in words:
             chars = list(word)
             for pair, merged in self.merges.items():
-                a, b = pair if isinstance(pair, tuple) else tuple(pair.split("|||"))
+                a, b = pair if isinstance(pair, tuple) else ast.literal_eval(pair)
                 new_chars = []
                 i = 0
                 while i < len(chars):
