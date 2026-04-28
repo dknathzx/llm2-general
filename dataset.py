@@ -1,17 +1,14 @@
 # ============================================================
 # dataset.py — General LLM Dataset
-# Sources: Wikipedia + Stack Overflow (free on Kaggle)
+# Sources: OpenWebText + Stack Overflow (free on Kaggle)
 # No confidential data — fully public datasets
 # ============================================================
 import sys
 sys.path.append('/kaggle/working/llm2-general')
-from journey_log import log
 import json
 import os
 import torch
 from torch.utils.data import Dataset, DataLoader
-import json
-import os
 from config import (
     BLOCK_SIZE, BATCH_SIZE, TOKENIZER_PATH,
     MAX_SAMPLES, DEVICE
@@ -37,9 +34,9 @@ class TextDataset(Dataset):
         return max(0, len(self.data) - self.block_size)
 
     def __getitem__(self, idx):
-        chunk  = self.data[idx : idx + self.block_size + 1]
-        x      = chunk[:-1]
-        y      = chunk[1:]
+        chunk = self.data[idx : idx + self.block_size + 1]
+        x     = chunk[:-1]
+        y     = chunk[1:]
         return x, y
 
 # ── Load and tokenize data ────────────────────────────────
@@ -51,31 +48,34 @@ def load_data(tok):
     print(f"{'='*60}")
 
     all_texts = []
+
     # Source 1 — OpenWebText
-print("\n[1/2] Loading OpenWebText...")
-try:
-    wiki = load_dataset("Skylion007/openwebtext",
-                        split="train",
-                        trust_remote_code=True)
-    wiki_sample = min(MAX_SAMPLES // 2, len(wiki))
-    for i in range(wiki_sample):
-        text = wiki[i]["text"]
-
-
+    print("\n[1/2] Loading OpenWebText...")
+    try:
+        wiki = load_dataset(
+            "Skylion007/openwebtext",
+            split="train",
+            trust_remote_code=True
+        )
+        wiki_sample = min(MAX_SAMPLES // 2, len(wiki))
+        for i in range(wiki_sample):
+            text = wiki[i]["text"]
             if text and len(text) > 100:
                 all_texts.append(text[:1000])
             if (i + 1) % 50000 == 0:
-                print(f"  Wikipedia: loaded {i+1:,} articles")
-        print(f"  Wikipedia total: {wiki_sample:,} articles ✅")
+                print(f"  OpenWebText: loaded {i+1:,} articles")
+        print(f"  OpenWebText total: {wiki_sample:,} articles ✅")
     except Exception as e:
-        print(f"  Wikipedia failed: {e}")
+        print(f"  OpenWebText failed: {e}")
 
     # Source 2 — Stack Overflow
     print("\n[2/2] Loading Stack Overflow...")
     try:
-        so = load_dataset("koutch/stackoverflow_python",
-                          split="train",
-                          trust_remote_code=True)
+        so = load_dataset(
+            "koutch/stackoverflow_python",
+            split="train",
+            trust_remote_code=True
+        )
         so_sample = min(MAX_SAMPLES // 2, len(so))
         for i in range(so_sample):
             row  = so[i]
@@ -87,31 +87,31 @@ try:
         print(f"  StackOverflow total: {so_sample:,} posts ✅")
     except Exception as e:
         print(f"  StackOverflow failed: {e}")
-        # fallback to more Wikipedia
-        print("  Falling back to more Wikipedia articles...")
+        print("  Falling back to more OpenWebText articles...")
 
     print(f"\nTotal texts loaded : {len(all_texts):,}")
 
-    # Tokenize
+    # Tokenize with checkpoint
     print("\nTokenizing all texts...")
-DATASET_CKPT = "/kaggle/working/dataset_checkpoint.json"
-start_idx    = 0
-all_ids      = []
+    DATASET_CKPT = "/kaggle/working/dataset_checkpoint.json"
+    start_idx    = 0
+    all_ids      = []
 
-if os.path.exists(DATASET_CKPT):
-    with open(DATASET_CKPT) as f:
-        ckpt = json.load(f)
-    all_ids   = ckpt["ids"]
-    start_idx = ckpt["done"]
-    print(f"  Resumed from text {start_idx:,}")
+    if os.path.exists(DATASET_CKPT):
+        with open(DATASET_CKPT) as f:
+            ckpt = json.load(f)
+        all_ids   = ckpt["ids"]
+        start_idx = ckpt["done"]
+        print(f"  Resumed from text {start_idx:,}")
 
-for i, text in enumerate(all_texts[start_idx:], start=start_idx):
-    ids = tok.encode(text)
-    all_ids.extend(ids)
-    if (i + 1) % 10000 == 0:
-        with open(DATASET_CKPT, "w") as f:
-            json.dump({"ids": all_ids, "done": i+1}, f)
-        print(f"  💾 checkpoint saved at text {i+1:,}")
+    for i, text in enumerate(all_texts[start_idx:], start=start_idx):
+        ids = tok.encode(text)
+        all_ids.extend(ids)
+
+        if (i + 1) % 10000 == 0:
+            with open(DATASET_CKPT, "w") as f:
+                json.dump({"ids": all_ids, "done": i + 1}, f)
+            print(f"  💾 checkpoint saved at text {i+1:,}")
 
         if (i + 1) % 50000 == 0:
             print(f"  tokenized {i+1:,}/{len(all_texts):,}  "
