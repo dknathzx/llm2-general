@@ -235,13 +235,15 @@ class GeneralTokenizer:
         for word in words:
             chars = list(word)
             for pair, merged in self.merges.items():
-                 a, b = pair if isinstance(pair, tuple) else tuple(pair.split("|||"))
-                new_chars = []
-                i = 0
-                while i < len(chars):
-                    if i < len(chars) - 1 and chars[i] == a and chars[i+1] == b:
-                        new_chars.append(merged)
-                        i += 2
+                 a, b = pair if isinstance(pair, tuple) else tuple(pair.split("|||"))               
+                new_chars = []               
+            i = 0 
+            while i < len(chars):
+                
+                if i < len(chars) - 1 and chars[i] == a and chars[i+1] == b:
+                    
+                    new_chars.append(merged)
+                    i += 2
                     else:
                         new_chars.append(chars[i])
                         i += 1
