@@ -33,7 +33,6 @@ AUTO_PUSH          = True
 def setup_kaggle_credentials():
     os.environ["KAGGLE_USERNAME"] = "dwarakanathk"
     os.environ["KAGGLE_KEY"]      = "KGAT_97ff8b4a8d918070c5209ec1e5c84858"
-    # also write kaggle.json so CLI works
     os.makedirs("/root/.kaggle", exist_ok=True)
     with open("/root/.kaggle/kaggle.json", "w") as f:
         json.dump({
@@ -44,7 +43,6 @@ def setup_kaggle_credentials():
 
 
 def push_to_kaggle(label="update"):
-    """Push ALL important files to Kaggle dataset permanently"""
     if not AUTO_PUSH:
         return
     try:
@@ -60,7 +58,6 @@ def push_to_kaggle(label="update"):
             "/kaggle/working/journey_backup.json",
         ]
 
-        # Also grab any model checkpoints
         ckpt_dir = "/kaggle/working/checkpoints"
         if os.path.exists(ckpt_dir):
             for f in os.listdir(ckpt_dir):
@@ -103,7 +100,6 @@ def push_to_kaggle(label="update"):
         print(f"  ⚠️ Push error: {e}")
 
 
-# ── Tokenizer Class ───────────────────────────────────────
 class GeneralTokenizer:
 
     def __init__(self):
@@ -118,7 +114,6 @@ class GeneralTokenizer:
         print(f" Target vocab : {target_vocab:,}")
         print(f"{'='*60}")
 
-        # Step 1 — word frequencies
         print("\n[1/4] Building word frequencies...")
         word_freq = Counter()
         for i, text in enumerate(texts):
@@ -128,14 +123,12 @@ class GeneralTokenizer:
             word_freq.update(words)
         print(f"  unique words : {len(word_freq):,}")
 
-        # Step 2 — character vocabulary
         print("\n[2/4] Building character vocabulary...")
         char_vocab = set()
         for word in word_freq:
             char_vocab.update(list(word))
         print(f"  unique chars : {len(char_vocab)}")
 
-        # Step 3 — BPE merges
         n_merges = max(0, target_vocab - len(SPECIAL_TOKENS) - len(char_vocab))
         print(f"\n[3/4] Running {n_merges:,} BPE merges...")
 
@@ -144,7 +137,6 @@ class GeneralTokenizer:
         vocab       = {word: list(word) for word in word_freq}
         merges      = {}
 
-        # Resume if checkpoint exists
         if os.path.exists(TOK_CKPT):
             with open(TOK_CKPT) as f:
                 ckpt = json.load(f)
@@ -157,7 +149,6 @@ class GeneralTokenizer:
 
         for i in range(start_merge, n_merges):
 
-            # Count pairs
             pairs = Counter()
             for word, chars in vocab.items():
                 freq = word_freq[word]
@@ -170,7 +161,6 @@ class GeneralTokenizer:
             best = max(pairs, key=pairs.get)
             merges[best] = "".join(best)
 
-            # Apply merge
             new_vocab = {}
             for word, chars in vocab.items():
                 new_chars = []
@@ -185,7 +175,6 @@ class GeneralTokenizer:
                 new_vocab[word] = new_chars
             vocab = new_vocab
 
-            # Progress log every 500 merges
             if (i + 1) % 500 == 0:
                 elapsed = time.time() - start
                 eta     = elapsed / (i + 1) * (n_merges - i - 1)
@@ -194,7 +183,6 @@ class GeneralTokenizer:
                       f"best: {''.join(best):12s} "
                       f"elapsed: {elapsed:.0f}s ETA: {eta:.0f}s")
 
-            # ✅ Save checkpoint + push to Kaggle every 1000 merges
             if (i + 1) % 1000 == 0:
                 with open(TOK_CKPT, "w") as f:
                     json.dump({
@@ -206,10 +194,8 @@ class GeneralTokenizer:
                 shutil.copy("/kaggle/working/journey_log.json",
                             "/kaggle/working/journey_backup.json")
 
-                # ── PUSH TO KAGGLE PERMANENTLY ──
                 push_to_kaggle(f"tokenizer merge {i+1}")
 
-        # Step 4 — build final vocab
         print("\n[4/4] Building final vocabulary...")
         all_tokens = set()
         all_tokens.update(char_vocab)
@@ -232,24 +218,29 @@ class GeneralTokenizer:
         words  = re.findall(r'\w+|[^\w\s]', text.lower())
         ids    = []
         unk_id = self.vocab.get(UNK_TOKEN, 1)
+
         for word in words:
             chars = list(word)
+
             for pair, merged in self.merges.items():
-                 a, b = pair if isinstance(pair, tuple) else tuple(pair.split("|||"))               
-                new_chars = []               
-            i = 0 
-            while i < len(chars):
-                
-                if i < len(chars) - 1 and chars[i] == a and chars[i+1] == b:
-                    
-                    new_chars.append(merged)
-                    i += 2
+                a, b = pair if isinstance(pair, tuple) else tuple(pair.split("|||"))
+
+                new_chars = []
+                i = 0
+
+                while i < len(chars):
+                    if i < len(chars) - 1 and chars[i] == a and chars[i+1] == b:
+                        new_chars.append(merged)
+                        i += 2
                     else:
                         new_chars.append(chars[i])
                         i += 1
+
                 chars = new_chars
+
             for tok in chars:
                 ids.append(self.vocab.get(tok, unk_id))
+
         return ids
 
     def decode(self, ids):
@@ -272,7 +263,6 @@ class GeneralTokenizer:
         print(f"Tokenizer loaded! Vocab size: {self.vocab_size:,}")
 
 
-# ── Main ──────────────────────────────────────────────────
 if __name__ == "__main__":
     from journey_log import log
     log("tokenizer.py", "RUNNING", "started")
@@ -294,10 +284,8 @@ if __name__ == "__main__":
     tok.train(texts, target_vocab=VOCAB_SIZE)
     tok.save(TOKENIZER_PATH)
 
-    # ✅ PUSH FINAL TOKENIZER TO KAGGLE PERMANENTLY
     push_to_kaggle("tokenizer COMPLETE - final")
 
-    # Test
     sample  = "the quick brown fox jumps over the lazy dog"
     encoded = tok.encode(sample)
     decoded = tok.decode(encoded)
