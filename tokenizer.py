@@ -148,7 +148,7 @@ class GeneralTokenizer:
         if os.path.exists(TOK_CKPT):
             with open(TOK_CKPT) as f:
                 ckpt = json.load(f)
-            merges      = {tuple(k.split("|||")): v for k, v in ckpt["merges"].items()}
+            merges      = {(k.split("|||")[0], k.split("|||")[1]): v for k, v in ckpt["merges"].items()}
             vocab       = ckpt["vocab"]
             start_merge = ckpt["done"]
             print(f"  Resumed tokenizer from merge {start_merge:,}")
@@ -235,7 +235,7 @@ class GeneralTokenizer:
         for word in words:
             chars = list(word)
             for pair, merged in self.merges.items():
-                a, b = pair if isinstance(pair, tuple) else ast.literal_eval(pair)
+                a, b = pair if isinstance(pair, tuple) else (pair.split("|||")[0], pair.split("|||")[1])
                 new_chars = []
                 i = 0
                 while i < len(chars):
