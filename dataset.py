@@ -87,44 +87,60 @@ def load_data(tok):
             ckpt = json.load(f)
         all_ids   = ckpt["ids"]
         start_idx = ckpt["done"]
-        print(f"  ✅ Resumed from text {start_idx:,}")
+        print(f"\n  ✅ Resumed from text {start_idx:,} — skipping already tokenized texts!")
+    else:
+        print(f"\n  🆕 No checkpoint found — starting fresh from text 0")
 
-    print(f"\nTokenizing texts {start_idx:,} → {len(all_texts):,}...")
-    print(f"{'='*60}")
+    print(f"\n{'='*60}")
+    print(f"  Tokenizing texts {start_idx:,} → {len(all_texts):,}")
+    print(f"  {len(all_texts) - start_idx:,} texts remaining")
+    print(f"{'='*60}\n")
 
     from tokenizer import push_to_kaggle
 
     start_time = time.time()
 
     for i, text in enumerate(all_texts[start_idx:], start=start_idx):
-        t0       = time.time()
-        ids      = tok.encode(text)
-        t1       = time.time()
+
+        # Tokenize
+        t0  = time.time()
+        ids = tok.encode(text)
+        t1  = time.time()
         all_ids.extend(ids)
 
-        elapsed  = time.time() - start_time
-        speed    = (i - start_idx + 1) / elapsed if elapsed > 0 else 0
+        # Stats
+        done      = i - start_idx + 1
+        elapsed   = time.time() - start_time
+        speed     = done / elapsed if elapsed > 0 else 0
         remaining = (len(all_texts) - i - 1) / speed if speed > 0 else 0
-        pct      = (i + 1) / len(all_texts) * 100
+        pct       = (i + 1) / len(all_texts) * 100
 
+        # Print EVERY single text
         print(
-            f"  [{pct:5.1f}%] "
+            f"  [{pct:5.2f}%] "
             f"text {i+1:,}/{len(all_texts):,}  "
-            f"tokens: +{len(ids):3d} = {len(all_ids):,}  "
-            f"speed: {speed:.1f} texts/s  "
-            f"ETA: {remaining/60:.1f} min  "
+            f"new tokens: +{len(ids)}  "
+            f"total tokens: {len(all_ids):,}  "
+            f"speed: {speed:.1f} t/s  "
+            f"ETA: {remaining/60:.1f}min  "
             f"took: {(t1-t0)*1000:.0f}ms"
         )
 
-        if (i + 1) % 5000 == 0:
-            with open(DATASET_CKPT, "w") as f:
-                json.dump({"ids": all_ids, "done": i + 1}, f)
-            print(f"\n  💾 checkpoint saved at text {i+1:,}")
-            push_to_kaggle(f"dataset checkpoint text {i+1}")
-            print(f"{'='*60}\n")
+        # Save locally EVERY single text
+        with open(DATASET_CKPT, "w") as f:
+            json.dump({"ids": all_ids, "done": i + 1}, f)
+        print(f"    💾 local save ✅  (text {i+1:,} saved to disk)")
 
-    print(f"\n✅ Tokenization complete!")
+        # Push to Kaggle every 100 texts
+        if (i + 1) % 100 == 0:
+            print(f"\n  📤 Pushing checkpoint to Kaggle at text {i+1:,}...")
+            push_to_kaggle(f"dataset checkpoint text {i+1}")
+            print(f"  ✅ Kaggle push done! Progress permanently saved.\n")
+
+    print(f"\n{'='*60}")
+    print(f"✅ Tokenization COMPLETE!")
     print(f"Total tokens : {len(all_ids):,}")
+    print(f"{'='*60}\n")
     return all_ids
 
 def get_dataloaders(tok):
