@@ -112,6 +112,8 @@ def load_data(tok):
             with open(DATASET_CKPT, "w") as f:
                 json.dump({"ids": all_ids, "done": i + 1}, f)
             print(f"  💾 checkpoint saved at text {i+1:,}")
+            from tokenizer import push_to_kaggle
+            push_to_kaggle(f"dataset checkpoint text {i+1}")
 
         if (i + 1) % 50000 == 0:
             print(f"  tokenized {i+1:,}/{len(all_texts):,}  "
