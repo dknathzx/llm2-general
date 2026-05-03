@@ -7,6 +7,7 @@ import sys
 sys.path.append('/kaggle/working/llm2-general')
 import json
 import os
+import time
 import torch
 from torch.utils.data import Dataset, DataLoader
 from config import (
@@ -89,23 +90,41 @@ def load_data(tok):
         print(f"  ✅ Resumed from text {start_idx:,}")
 
     print(f"\nTokenizing texts {start_idx:,} → {len(all_texts):,}...")
+    print(f"{'='*60}")
 
     from tokenizer import push_to_kaggle
 
+    start_time = time.time()
+
     for i, text in enumerate(all_texts[start_idx:], start=start_idx):
-        ids = tok.encode(text)
+        t0       = time.time()
+        ids      = tok.encode(text)
+        t1       = time.time()
         all_ids.extend(ids)
 
-        if (i + 1) % 1000 == 0:
-            print(f"  tokenizing {i+1:,}/{len(all_texts):,}  tokens: {len(all_ids):,}")
+        elapsed  = time.time() - start_time
+        speed    = (i - start_idx + 1) / elapsed if elapsed > 0 else 0
+        remaining = (len(all_texts) - i - 1) / speed if speed > 0 else 0
+        pct      = (i + 1) / len(all_texts) * 100
+
+        print(
+            f"  [{pct:5.1f}%] "
+            f"text {i+1:,}/{len(all_texts):,}  "
+            f"tokens: +{len(ids):3d} = {len(all_ids):,}  "
+            f"speed: {speed:.1f} texts/s  "
+            f"ETA: {remaining/60:.1f} min  "
+            f"took: {(t1-t0)*1000:.0f}ms"
+        )
 
         if (i + 1) % 5000 == 0:
             with open(DATASET_CKPT, "w") as f:
                 json.dump({"ids": all_ids, "done": i + 1}, f)
-            print(f"  💾 checkpoint saved at text {i+1:,}")
+            print(f"\n  💾 checkpoint saved at text {i+1:,}")
             push_to_kaggle(f"dataset checkpoint text {i+1}")
+            print(f"{'='*60}\n")
 
-    print(f"\nTotal tokens : {len(all_ids):,}")
+    print(f"\n✅ Tokenization complete!")
+    print(f"Total tokens : {len(all_ids):,}")
     return all_ids
 
 def get_dataloaders(tok):
