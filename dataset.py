@@ -15,13 +15,11 @@ from config import (
 )
 from tokenizer import GeneralTokenizer
 
-# ── Load tokenizer ────────────────────────────────────────
 def load_tokenizer():
     tok = GeneralTokenizer()
     tok.load(TOKENIZER_PATH)
     return tok
 
-# ── Text Dataset ──────────────────────────────────────────
 class TextDataset(Dataset):
     def __init__(self, token_ids, block_size=BLOCK_SIZE):
         self.data       = torch.tensor(token_ids, dtype=torch.long)
@@ -39,7 +37,6 @@ class TextDataset(Dataset):
         y     = chunk[1:]
         return x, y
 
-# ── Load and tokenize data ────────────────────────────────
 def load_data(tok):
     from datasets import load_dataset
 
@@ -49,14 +46,9 @@ def load_data(tok):
 
     all_texts = []
 
-    # Source 1 — OpenWebText
     print("\n[1/2] Loading OpenWebText...")
     try:
-        wiki = load_dataset(
-            "Skylion007/openwebtext",
-            split="train",
-            trust_remote_code=True
-        )
+        wiki = load_dataset("Skylion007/openwebtext", split="train", trust_remote_code=True)
         wiki_sample = min(MAX_SAMPLES // 2, len(wiki))
         for i in range(wiki_sample):
             text = wiki[i]["text"]
@@ -68,14 +60,9 @@ def load_data(tok):
     except Exception as e:
         print(f"  OpenWebText failed: {e}")
 
-    # Source 2 — Stack Overflow
     print("\n[2/2] Loading Stack Overflow...")
     try:
-        so = load_dataset(
-            "koutch/stackoverflow_python",
-            split="train",
-            trust_remote_code=True
-        )
+        so = load_dataset("koutch/stackoverflow_python", split="train", trust_remote_code=True)
         so_sample = min(MAX_SAMPLES // 2, len(so))
         for i in range(so_sample):
             row  = so[i]
@@ -87,12 +74,9 @@ def load_data(tok):
         print(f"  StackOverflow total: {so_sample:,} posts ✅")
     except Exception as e:
         print(f"  StackOverflow failed: {e}")
-        print("  Falling back to more OpenWebText articles...")
 
     print(f"\nTotal texts loaded : {len(all_texts):,}")
 
-    # Tokenize with checkpoint
-    print("\nTokenizing all texts...")
     DATASET_CKPT = "/kaggle/working/dataset_checkpoint.json"
     start_idx    = 0
     all_ids      = []
@@ -102,49 +86,37 @@ def load_data(tok):
             ckpt = json.load(f)
         all_ids   = ckpt["ids"]
         start_idx = ckpt["done"]
-        print(f"  Resumed from text {start_idx:,}")
+        print(f"  ✅ Resumed from text {start_idx:,}")
+
+    print(f"\nTokenizing texts {start_idx:,} → {len(all_texts):,}...")
+
+    from tokenizer import push_to_kaggle
 
     for i, text in enumerate(all_texts[start_idx:], start=start_idx):
         ids = tok.encode(text)
         all_ids.extend(ids)
 
-        if (i + 1) % 10000 == 0:
+        if (i + 1) % 1000 == 0:
+            print(f"  tokenizing {i+1:,}/{len(all_texts):,}  tokens: {len(all_ids):,}")
+
+        if (i + 1) % 5000 == 0:
             with open(DATASET_CKPT, "w") as f:
                 json.dump({"ids": all_ids, "done": i + 1}, f)
             print(f"  💾 checkpoint saved at text {i+1:,}")
-            from tokenizer import push_to_kaggle
             push_to_kaggle(f"dataset checkpoint text {i+1}")
-
-        if (i + 1) % 50000 == 0:
-            print(f"  tokenized {i+1:,}/{len(all_texts):,}  "
-                  f"tokens so far: {len(all_ids):,}")
 
     print(f"\nTotal tokens : {len(all_ids):,}")
     return all_ids
 
-# ── Build dataloaders ─────────────────────────────────────
 def get_dataloaders(tok):
     all_ids = load_data(tok)
 
-    # 90% train, 10% val
     split    = int(0.9 * len(all_ids))
     train_ds = TextDataset(all_ids[:split])
     val_ds   = TextDataset(all_ids[split:])
 
-    train_dl = DataLoader(
-        train_ds,
-        batch_size  = BATCH_SIZE,
-        shuffle     = True,
-        num_workers = 2,
-        pin_memory  = True
-    )
-    val_dl = DataLoader(
-        val_ds,
-        batch_size  = BATCH_SIZE,
-        shuffle     = False,
-        num_workers = 2,
-        pin_memory  = True
-    )
+    train_dl = DataLoader(train_ds, batch_size=BATCH_SIZE, shuffle=True,  num_workers=2, pin_memory=True)
+    val_dl   = DataLoader(val_ds,   batch_size=BATCH_SIZE, shuffle=False, num_workers=2, pin_memory=True)
 
     print(f"\n  Train batches : {len(train_dl):,}")
     print(f"  Val batches   : {len(val_dl):,}")
