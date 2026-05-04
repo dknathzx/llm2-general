@@ -78,18 +78,29 @@ def load_data(tok):
 
     print(f"\nTotal texts loaded : {len(all_texts):,}")
 
+    # ── Tokenization with checkpoint ──────────────────────
     DATASET_CKPT = "/kaggle/working/dataset_checkpoint.json"
+    TOKENS_PT    = "/kaggle/working/tokens.pt"
     start_idx    = 0
     all_ids      = []
 
+    # ── Check if fully tokenized already ──────────────────
+    if os.path.exists(TOKENS_PT):
+        print(f"\n  ✅ tokens.pt found — skipping tokenization entirely!")
+        print(f"  Loading tokens directly...")
+        all_ids = torch.load(TOKENS_PT).tolist()
+        print(f"  ✅ Loaded {len(all_ids):,} tokens instantly!")
+        return all_ids
+
+    # ── Resume from checkpoint ─────────────────────────────
     if os.path.exists(DATASET_CKPT):
         with open(DATASET_CKPT) as f:
             ckpt = json.load(f)
         all_ids   = ckpt["ids"]
         start_idx = ckpt["done"]
-        print(f"\n  ✅ Resumed from text {start_idx:,} — skipping already tokenized texts!")
+        print(f"\n  ✅ Resumed from text {start_idx:,} — {len(all_texts)-start_idx:,} remaining!")
     else:
-        print(f"\n  🆕 No checkpoint found — starting fresh from text 0")
+        print(f"\n  🆕 No checkpoint — starting fresh from text 0")
 
     print(f"\n{'='*60}")
     print(f"  Tokenizing texts {start_idx:,} → {len(all_texts):,}")
@@ -97,7 +108,6 @@ def load_data(tok):
     print(f"{'='*60}\n")
 
     from tokenizer import push_to_kaggle
-
     start_time = time.time()
 
     for i, text in enumerate(all_texts[start_idx:], start=start_idx):
@@ -120,7 +130,7 @@ def load_data(tok):
             f"  [{pct:5.2f}%] "
             f"text {i+1:,}/{len(all_texts):,}  "
             f"new tokens: +{len(ids)}  "
-            f"total tokens: {len(all_ids):,}  "
+            f"total: {len(all_ids):,}  "
             f"speed: {speed:.1f} t/s  "
             f"ETA: {remaining/60:.1f}min  "
             f"took: {(t1-t0)*1000:.0f}ms"
@@ -129,17 +139,22 @@ def load_data(tok):
         # Save locally EVERY single text
         with open(DATASET_CKPT, "w") as f:
             json.dump({"ids": all_ids, "done": i + 1}, f)
-        print(f"    💾 local save ✅  (text {i+1:,} saved to disk)")
 
         # Push to Kaggle every 100 texts
         if (i + 1) % 100 == 0:
             print(f"\n  📤 Pushing checkpoint to Kaggle at text {i+1:,}...")
             push_to_kaggle(f"dataset checkpoint text {i+1}")
-            print(f"  ✅ Kaggle push done! Progress permanently saved.\n")
+            print(f"  ✅ Kaggle push done! Permanently saved.\n")
 
+    # ── Tokenization complete — save as tokens.pt ─────────
     print(f"\n{'='*60}")
     print(f"✅ Tokenization COMPLETE!")
     print(f"Total tokens : {len(all_ids):,}")
+
+    torch.save(torch.tensor(all_ids, dtype=torch.long), TOKENS_PT)
+    print(f"✅ Saved tokens.pt permanently!")
+    push_to_kaggle("TOKENIZATION COMPLETE - tokens.pt saved")
+
     print(f"{'='*60}\n")
     return all_ids
 
