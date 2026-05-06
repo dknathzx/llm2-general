@@ -12,17 +12,18 @@ VOCAB_SIZE     = 50000
 TOKENIZER_PATH = "/kaggle/working/general_tokenizer.json"
 
 # ── Model ─────────────────────────────────────────────────
-EMBED_DIM      = 512    # reduced from 768
-N_LAYERS       = 8      # reduced from 12
-N_HEADS        = 8      # reduced from 12
-BLOCK_SIZE     = 512    # reduced from 1024
+EMBED_DIM      = 512
+N_LAYERS       = 8
+N_HEADS        = 8
+FFN_DIM        = 2048   # ← ADD THIS (4 x EMBED_DIM)
+BLOCK_SIZE     = 512
 DROPOUT        = 0.1
 
 # ── Training ──────────────────────────────────────────────
-BATCH_SIZE     = 32     # increased (faster on GPU)
+BATCH_SIZE     = 32
 LEARNING_RATE  = 3e-4
-EPOCHS         = 2      # reduced from 3
-MAX_SAMPLES    = 50000  # reduced from 500000
+EPOCHS         = 2
+MAX_SAMPLES    = 50000
 
 # ── Checkpointing ─────────────────────────────────────────
 CHECKPOINT_DIR  = "/kaggle/working/checkpoints"
